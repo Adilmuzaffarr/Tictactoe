@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Tic Tac Toe 💕</title>
+
+<!-- ===================================================================
+  SETUP: paste your Firebase config below where it says YOUR CONFIG HERE
+  See the instructions Claude gave you for how to get these values.
+=================================================================== -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: linear-gradient(160deg, #ffe4ec 0%, #ffd1dc 50%, #ffc2d1 100%);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow-x: hidden;
+    position: relative;
+    padding: 20px;
+  }
+
+  .heart {
+    position: fixed;
+    bottom: -40px;
+    color: #ff8fab;
+    opacity: 0.6;
+    pointer-events: none;
+    animation: floatUp linear infinite;
+    z-index: 1;
+  }
+
+  @keyframes floatUp {
+    0% { transform: translateY(0) translateX(0) rotate(0deg); opacity: 0; }
+    10% { opacity: 0.7; }
+    90% { opacity: 0.5; }
+    100% { transform: translateY(-110vh) translateX(var(--drift)) rotate(360deg); opacity: 0; }
+  }
+
+  .wrap {
+    background: #fff5f8;
+    border-radius: 24px;
+    padding: 32px 26px;
+    max-width: 420px;
+    width: 100%;
+    text-align: center;
+    box-shadow: 0 10px 40px rgba(255, 105, 145, 0.25);
+    border: 1px solid #ffd6e2;
+    position: relative;
+    z-index: 2;
+  }
+
+  h1 {
+    font-size: 24px;
+    color: #c2185b;
+    margin-bottom: 6px;
+  }
+
+  .subtitle {
+    font-size: 14px;
+    color: #d17a94;
+    margin-bottom: 20px;
+  }
+
+  #setupScreen input {
+    width: 100%;
+    padding: 12px;
+    border-radius: 12px;
+    border: 1px solid #ffd6e2;
+    font-size: 15px;
+    margin-bottom: 12px;
+    text-align: center;
+  }
+
+  button {
+    font-family: inherit;
+    border: none;
+    border-radius: 50px;
+    padding: 12px 26px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    background: linear-gradient(135deg, #ff5c8a, #ff8fab);
+    color: #fff;
+    box-shadow: 0 4px 14px rgba(255, 92, 138, 0.4);
+    margin: 6px 4px;
+  }
+
+  button.secondary {
+    background: #ffe4ec;
+    color: #c2185b;
+    box-shadow: none;
+  }
+
+  #shareBox {
+    display: none;
+    background: #ffe4ec;
+    border-radius: 14px;
+    padding: 16px;
+    margin: 16px 0;
+    font-size: 13px;
+    color: #a34e6a;
+    word-break: break-all;
+  }
+
+  #shareBox a { color: #c2185b; font-weight: 600; }
+
+  #statusLine {
+    font-size: 15px;
+    color: #a34e6a;
+    margin: 14px 0;
+    min-height: 20px;
+    font-weight: 600;
+  }
+
+  #board {
+    display: none;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin: 14px auto;
+    max-width: 300px;
+  }
+
+  .cell {
+    aspect-ratio: 1;
+    background: #ffe4ec;
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 40px;
+    font-weight: 700;
+    color: #c2185b;
+    cursor: pointer;
+    transition: transform 0.15s ease, background 0.2s ease;
+    user-select: none;
+  }
+
+  .cell:active { transform: scale(0.95); }
+  .cell.filled { cursor: default; }
+  .cell.win { background: #ff8fab; color: #fff; }
+
+  #resetBtn { display: none; }
+
+  .confetti {
+    position: fixed;
+    top: -20px;
+    font-size: 20px;
+    animation: fall linear forwards;
+    z-index: 9;
+    pointer-events: none;
+  }
+
+  @keyframes fall {
+    to { transform: translateY(110vh) rotate(360deg); opacity: 0.7; }
+  }
+</style>
+</head>
+<body>
+
+<div id="heartsContainer"></div>
+
+<div class="wrap">
+  <h1>Tic Tac Toe 💕</h1>
+  <p class="subtitle">Play live, together, wherever you both are</p>
+
+  <div id="setupScreen">
+    <button onclick="startNewGame()">Start a New Game</button>
+  </div>
+
+  <div id="shareBox"></div>
+
+  <div id="statusLine"></div>
+
+  <div id="board"></div>
+
+  <button id="resetBtn" class="secondary" onclick="resetBoard()">Play Again</button>
+</div>
+
+<script>
+  // =========================================================
+  // YOUR CONFIG HERE — replace with your Firebase project config
+  // =========================================================
+  const firebaseConfig = {
+    apiKey: "AIzaSyAxF3zoqwQJfNMVcEInPYgUnL-KuqhaG0k",
+    authDomain: "rabiya-ttt.firebaseapp.com",
+    databaseURL: "https://rabiya-ttt-default-rtdb.firebaseio.com",
+    projectId: "rabiya-ttt",
+    storageBucket: "rabiya-ttt.firebasestorage.app",
+    messagingSenderId: "889283222878",
+    appId: "1:889283222878:web:2154652a19d2b8ada9c3cf"
+  };
+
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.database();
+
+  const WIN_LINES = [
+    [0,1,2],[3,4,5],[6,7,8],
+    [0,3,6],[1,4,7],[2,5,8],
+    [0,4,8],[2,4,6]
+  ];
+
+  let roomId = null;
+  let mySymbol = null;
+  let roomRef = null;
+  let currentState = null;
+
+  const params = new URLSearchParams(window.location.search);
+  const urlRoom = params.get('room');
+
+  if (urlRoom) {
+    roomId = urlRoom;
+    joinRoom(roomId);
+  }
+
+  function startNewGame() {
+    roomId = Math.random().toString(36).substring(2, 8);
+    mySymbol = 'X';
+    localStorage.setItem('ttt_role_' + roomId, 'X');
+
+    const newUrl = window.location.origin + window.location.pathname + '?room=' + roomId;
+    window.history.replaceState({}, '', newUrl);
+
+    roomRef = db.ref('tictactoe/' + roomId);
+    roomRef.set({
+      board: Array(9).fill(''),
+      turn: 'X',
+      winner: '',
+      players: { X: true }
+    });
+
+    document.getElementById('setupScreen').style.display = 'none';
+    const shareBox = document.getElementById('shareBox');
+    shareBox.style.display = 'block';
+    shareBox.innerHTML = 'Send this link to Rabiya:<br><a href="' + newUrl + '">' + newUrl + '</a>';
+
+    listenToRoom();
+  }
+
+  function joinRoom(id) {
+    roomRef = db.ref('tictactoe/' + id);
+    const savedRole = localStorage.getItem('ttt_role_' + id);
+
+    document.getElementById('setupScreen').style.display = 'none';
+
+    roomRef.once('value', (snap) => {
+      const data = snap.val();
+      if (savedRole) {
+        mySymbol = savedRole;
+        listenToRoom();
+      } else if (data && !data.players?.O) {
+        mySymbol = 'O';
+        localStorage.setItem('ttt_role_' + id, 'O');
+        roomRef.child('players/O').set(true);
+        listenToRoom();
+      } else if (data && data.players?.X && data.players?.O) {
+        mySymbol = 'spectator';
+        listenToRoom();
+      } else {
+        mySymbol = 'X';
+        localStorage.setItem('ttt_role_' + id, 'X');
+        roomRef.set({
+          board: Array(9).fill(''),
+          turn: 'X',
+          winner: '',
+          players: { X: true }
+        });
+        listenToRoom();
+      }
+    });
+  }
+
+  function listenToRoom() {
+    document.getElementById('board').style.display = 'grid';
+    document.getElementById('resetBtn').style.display = 'inline-block';
+    roomRef.on('value', (snap) => {
+      currentState = snap.val();
+      if (currentState) render();
+    });
+  }
+
+  function render() {
+    const boardEl = document.getElementById('board');
+    boardEl.innerHTML = '';
+    const board = currentState.board || Array(9).fill('');
+    const winner = currentState.winner;
+    const turn = currentState.turn;
+
+    let winLine = [];
+    if (winner && winner !== 'draw') {
+      for (const line of WIN_LINES) {
+        const [a,b,c] = line;
+        if (board[a] && board[a] === board[b] && board[a] === board[c]) {
+          winLine = line;
+          break;
+        }
+      }
+    }
+
+    board.forEach((val, i) => {
+      const cell = document.createElement('div');
+      cell.className = 'cell' + (val ? ' filled' : '') + (winLine.includes(i) ? ' win' : '');
+      cell.textContent = val === 'X' ? '💗' : val === 'O' ? '💛' : '';
+      cell.onclick = () => makeMove(i);
+      boardEl.appendChild(cell);
+    });
+
+    const statusLine = document.getElementById('statusLine');
+    if (mySymbol === 'spectator') {
+      statusLine.textContent = winner ? describeResult(winner) : "Watching " + turn + "'s turn";
+    } else if (winner) {
+      statusLine.textContent = describeResult(winner);
+      if (winner === mySymbol) launchConfetti();
+    } else if (turn === mySymbol) {
+      statusLine.textContent = "Your turn 💗";
+    } else {
+      statusLine.textContent = "Waiting for the other player...";
+    }
+  }
+
+  function describeResult(winner) {
+    if (winner === 'draw') return "It's a draw!";
+    return (winner === mySymbol) ? "You won! 🎉" : (winner + " won!");
+  }
+
+  function makeMove(index) {
+    if (!currentState || mySymbol === 'spectator') return;
+    if (currentState.winner) return;
+    if (currentState.turn !== mySymbol) return;
+    if (currentState.board[index]) return;
+
+    const newBoard = [...currentState.board];
+    newBoard[index] = mySymbol;
+
+    let winner = '';
+    for (const [a,b,c] of WIN_LINES) {
+      if (newBoard[a] && newBoard[a] === newBoard[b] && newBoard[a] === newBoard[c]) {
+        winner = mySymbol;
+      }
+    }
+    if (!winner && newBoard.every(v => v)) winner = 'draw';
+
+    roomRef.update({
+      board: newBoard,
+      turn: mySymbol === 'X' ? 'O' : 'X',
+      winner: winner
+    });
+  }
+
+  function resetBoard() {
+    if (mySymbol === 'spectator') return;
+    roomRef.update({
+      board: Array(9).fill(''),
+      turn: 'X',
+      winner: ''
+    });
+  }
+
+  function launchConfetti() {
+    const emojis = ['💗', '✨', '💛', '🌸'];
+    for (let i = 0; i < 30; i++) {
+      setTimeout(() => {
+        const el = document.createElement('div');
+        el.className = 'confetti';
+        el.textContent = emojis[Math.floor(Math.random() * emojis.length)];
+        el.style.left = Math.random() * 100 + 'vw';
+        el.style.animationDuration = (2.5 + Math.random() * 2) + 's';
+        el.style.fontSize = (14 + Math.random() * 14) + 'px';
+        document.body.appendChild(el);
+        setTimeout(() => el.remove(), 5000);
+      }, i * 60);
+    }
+  }
+
+  function createHeart() {
+    const container = document.getElementById('heartsContainer');
+    const heart = document.createElement('div');
+    heart.className = 'heart';
+    const hearts = ['💗', '💖', '💕', '❤️'];
+    heart.textContent = hearts[Math.floor(Math.random() * hearts.length)];
+    heart.style.left = Math.random() * 100 + 'vw';
+    heart.style.fontSize = (14 + Math.random() * 16) + 'px';
+    heart.style.setProperty('--drift', (Math.random() * 100 - 50) + 'px');
+    heart.style.animationDuration = (7 + Math.random() * 6) + 's';
+    container.appendChild(heart);
+    setTimeout(() => heart.remove(), 14000);
+  }
+  setInterval(createHeart, 900);
+</script>
+
+</body>
+</html>
