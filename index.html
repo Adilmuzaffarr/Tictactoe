@@ -307,14 +307,15 @@
     board.forEach((val, i) => {
       const cell = document.createElement('div');
       cell.className = 'cell' + (val ? ' filled' : '') + (winLine.includes(i) ? ' win' : '');
-      cell.textContent = val === 'X' ? '💗' : val === 'O' ? '💛' : '';
+      cell.textContent = val === 'X' ? '✕' : val === 'O' ? '◯' : '';
+      cell.style.color = val === 'X' ? '#ff5c8a' : val === 'O' ? '#e0a233' : '#c2185b';
       cell.onclick = () => makeMove(i);
       boardEl.appendChild(cell);
     });
 
     const statusLine = document.getElementById('statusLine');
     if (mySymbol === 'spectator') {
-      statusLine.textContent = winner ? describeResult(winner) : "Watching " + turn + "'s turn";
+      statusLine.textContent = winner ? describeResult(winner) : "This room already has two players — tap 'Start a New Game' for a fresh link";
     } else if (winner) {
       statusLine.textContent = describeResult(winner);
       if (winner === mySymbol) launchConfetti();
