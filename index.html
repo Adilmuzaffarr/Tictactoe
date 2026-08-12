@@ -147,7 +147,7 @@
   .cell.filled { cursor: default; }
   .cell.win { background: #ff8fab; color: #fff; }
 
-  #resetBtn { display: none; }
+  #resetBtn, #menuBtn { display: none; }
 
   .confetti {
     position: fixed;
@@ -172,7 +172,8 @@
   <p class="subtitle">Play live, together, wherever you both are</p>
 
   <div id="setupScreen">
-    <button onclick="startNewGame()">Start a New Game</button>
+    <button onclick="startNewGame()">Play Online (Share a Link)</button>
+    <button class="secondary" onclick="startLocalGame()">Play Here (2 Players, 1 Device)</button>
   </div>
 
   <div id="shareBox"></div>
@@ -182,6 +183,7 @@
   <div id="board"></div>
 
   <button id="resetBtn" class="secondary" onclick="resetBoard()">Play Again</button>
+  <button id="menuBtn" class="secondary" onclick="backToMenu()">Menu</button>
 </div>
 
 <script>
@@ -211,6 +213,7 @@
   let mySymbol = null;
   let roomRef = null;
   let currentState = null;
+  let isLocalMode = false;
 
   const params = new URLSearchParams(window.location.search);
   const urlRoom = params.get('room');
@@ -242,6 +245,43 @@
     shareBox.innerHTML = 'Send this link to Rabiya:<br><a href="' + newUrl + '">' + newUrl + '</a>';
 
     listenToRoom();
+  }
+
+  function startLocalGame() {
+    isLocalMode = true;
+    mySymbol = null;
+    roomRef = null;
+    currentState = {
+      board: Array(9).fill(''),
+      turn: 'X',
+      winner: ''
+    };
+
+    document.getElementById('setupScreen').style.display = 'none';
+    document.getElementById('board').style.display = 'grid';
+    document.getElementById('resetBtn').style.display = 'inline-block';
+    document.getElementById('menuBtn').style.display = 'inline-block';
+
+    render();
+  }
+
+  function backToMenu() {
+    isLocalMode = false;
+    mySymbol = null;
+    currentState = null;
+    if (roomRef) {
+      roomRef.off();
+      roomRef = null;
+    }
+
+    window.history.replaceState({}, '', window.location.origin + window.location.pathname);
+
+    document.getElementById('board').style.display = 'none';
+    document.getElementById('resetBtn').style.display = 'none';
+    document.getElementById('menuBtn').style.display = 'none';
+    document.getElementById('shareBox').style.display = 'none';
+    document.getElementById('statusLine').textContent = '';
+    document.getElementById('setupScreen').style.display = 'block';
   }
 
   function joinRoom(id) {
@@ -280,6 +320,7 @@
   function listenToRoom() {
     document.getElementById('board').style.display = 'grid';
     document.getElementById('resetBtn').style.display = 'inline-block';
+    document.getElementById('menuBtn').style.display = 'inline-block';
     roomRef.on('value', (snap) => {
       currentState = snap.val();
       if (currentState) render();
@@ -314,7 +355,10 @@
     });
 
     const statusLine = document.getElementById('statusLine');
-    if (mySymbol === 'spectator') {
+    if (isLocalMode) {
+      statusLine.textContent = winner ? describeResult(winner) : ((turn === 'X' ? "X's" : "O's") + " turn " + (turn === 'X' ? "💗" : "💛"));
+      if (winner && winner !== 'draw') launchConfetti();
+    } else if (mySymbol === 'spectator') {
       statusLine.textContent = winner ? describeResult(winner) : "This room already has two players — tap 'Start a New Game' for a fresh link";
     } else if (winner) {
       statusLine.textContent = describeResult(winner);
@@ -328,34 +372,57 @@
 
   function describeResult(winner) {
     if (winner === 'draw') return "It's a draw!";
+    if (isLocalMode) return winner + " wins! 🎉";
     return (winner === mySymbol) ? "You won! 🎉" : (winner + " won!");
   }
 
   function makeMove(index) {
-    if (!currentState || mySymbol === 'spectator') return;
+    if (!currentState) return;
     if (currentState.winner) return;
-    if (currentState.turn !== mySymbol) return;
     if (currentState.board[index]) return;
 
+    if (isLocalMode) {
+      playMove(currentState.turn, index);
+      return;
+    }
+
+    if (mySymbol === 'spectator') return;
+    if (currentState.turn !== mySymbol) return;
+    playMove(mySymbol, index);
+  }
+
+  function playMove(symbol, index) {
     const newBoard = [...currentState.board];
-    newBoard[index] = mySymbol;
+    newBoard[index] = symbol;
 
     let winner = '';
     for (const [a,b,c] of WIN_LINES) {
       if (newBoard[a] && newBoard[a] === newBoard[b] && newBoard[a] === newBoard[c]) {
-        winner = mySymbol;
+        winner = symbol;
       }
     }
     if (!winner && newBoard.every(v => v)) winner = 'draw';
 
-    roomRef.update({
-      board: newBoard,
-      turn: mySymbol === 'X' ? 'O' : 'X',
-      winner: winner
-    });
+    const nextTurn = symbol === 'X' ? 'O' : 'X';
+
+    if (isLocalMode) {
+      currentState = { board: newBoard, turn: nextTurn, winner: winner };
+      render();
+    } else {
+      roomRef.update({
+        board: newBoard,
+        turn: nextTurn,
+        winner: winner
+      });
+    }
   }
 
   function resetBoard() {
+    if (isLocalMode) {
+      currentState = { board: Array(9).fill(''), turn: 'X', winner: '' };
+      render();
+      return;
+    }
     if (mySymbol === 'spectator') return;
     roomRef.update({
       board: Array(9).fill(''),
